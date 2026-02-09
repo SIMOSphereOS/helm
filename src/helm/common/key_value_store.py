@@ -78,7 +78,8 @@ class SqliteKeyValueStore(KeyValueStore):
             self.put(key, value)
 
     def remove(self, key: Mapping) -> None:
-        del self._sqlite_dict[key]
+        key_string = request_to_key(key)
+        del self._sqlite_dict[key_string]
         self._sqlite_dict.commit()
 
 

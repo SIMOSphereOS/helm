@@ -265,6 +265,11 @@ tokenizer_configs:
       class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
     end_of_text_token: "<eos>"
     prefix_token: "<bos>"
+  - name: google/gemma-2-9b-it
+    tokenizer_spec:
+      class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
+    end_of_text_token: "<eos>"
+    prefix_token: "<bos>"
   - name: google/medgemma-4b-it
     tokenizer_spec:
       class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
@@ -377,6 +382,15 @@ tokenizer_configs:
   - name: meta-llama/Llama-2-7b-hf
     tokenizer_spec:
       class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
+    end_of_text_token: "</s>"
+    prefix_token: "<s>"
+
+  # NousResearch Llama 2 (public copy, no license required)
+  - name: NousResearch/Llama-2-7b-hf
+    tokenizer_spec:
+      class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
+      args:
+        pretrained_model_name_or_path: NousResearch/Llama-2-7b-hf
     end_of_text_token: "</s>"
     prefix_token: "<s>"
 
@@ -1340,3 +1354,8 @@ tokenizer_configs:
       class_name: "helm.tokenizers.huggingface_tokenizer.HuggingFaceTokenizer"
     end_of_text_token: "</s>"
     prefix_token: "<s>"
+
+  # ============================================
+  # Finance-Specific Models
+  # ============================================
+

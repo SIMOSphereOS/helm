@@ -1,8 +1,9 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Callable, Generator, Mapping, Tuple
+from typing import Dict, Callable, Generator, Mapping, Optional, Tuple
 import json
 import threading
+import time
 
 import sqlite3
 
@@ -51,6 +52,9 @@ class SqliteCacheConfig(KeyValueStoreCacheConfig):
 
     # Path for the Sqlite file that backs the cache.
     path: str
+
+    # Optional TTL in seconds. Entries older than this are recomputed.
+    ttl_seconds: Optional[int] = None
 
     @property
     def cache_stats_key(self) -> str:
@@ -121,9 +125,15 @@ def create_key_value_store(config: KeyValueStoreCacheConfig) -> KeyValueStore:
 def write_to_key_value_store(key_value_store: KeyValueStore, key: Mapping, response: Dict) -> bool:
     """
     Write to the key value store with retry. Returns boolean indicating whether the write was successful or not.
+    Adds a creation timestamp for TTL checking.
     """
     try:
-        key_value_store.put(key, response)
+        # Add creation timestamp to response for TTL checking
+        response_with_meta = {
+            **response,
+            "_cache_created_at": time.time(),
+        }
+        key_value_store.put(key, response_with_meta)
         return True
     except Exception as e:
         hlog(f"Error when writing to cache: {str(e)}")
@@ -182,6 +192,23 @@ class Cache(object):
         else:
             raise ValueError(f"CacheConfig with unknown type: {config}")
 
+    def _is_expired(self, response: Dict) -> bool:
+        """Check if cached response has exceeded TTL."""
+        ttl = getattr(self.config, "ttl_seconds", None)
+        if ttl is None:
+            return False
+
+        created_at = response.get("_cache_created_at")
+        if created_at is None:
+            return False  # Legacy entries without timestamp are kept
+
+        age_seconds = time.time() - created_at
+        return age_seconds > ttl
+
+    def _strip_cache_metadata(self, response: Dict) -> Dict:
+        """Remove internal cache metadata before returning response."""
+        return {k: v for k, v in response.items() if not k.startswith("_cache_")}
+
     def get(self, request: Mapping, compute: Callable[[], Dict]) -> Tuple[Dict, bool]:
         """Get the result of `request` (by calling `compute` as needed)."""
         cache_stats.increment_query(self.config.cache_stats_key)
@@ -189,7 +216,16 @@ class Cache(object):
         # TODO: Initialize key_value_store in constructor
         with create_key_value_store(self.config) as key_value_store:
             response = key_value_store.get(request)
+
+            # Check TTL if configured
+            if response and self._is_expired(response):
+                hlog(f"Cache entry expired (TTL exceeded), recomputing")
+                key_value_store.remove(request)
+                response = None
+
             if response:
+                # Remove metadata before returning
+                response = self._strip_cache_metadata(response)
                 cached = True
             else:
                 cached = False
